@@ -66,11 +66,86 @@ func Logger(next http.HandlerFunc) http.HandlerFunc { // промежуточн�
 func bookHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodGet {
 		handleGetBook(w, r)
-	}
-	if r.Method == http.MethodPost {
+	} else if r.Method == http.MethodPost {
 		handleAddBook(w, r)
+	} else if r.Method == http.MethodPost {
+		handleAddBook(w, r)
+	} else if r.Method == http.MethodDelete {
+		handleDeleteBook(w, r)
+	} else if r.Method == http.MethodPut {
+		handleUpdateBook(w, r)
 	}
 }
+
+func handleUpdateBook(w http.ResponseWriter, r *http.Request) {
+	id := strings.Replace(r.URL.Path, "/book/", "", 1)
+
+	decoder := json.NewDecoder(r.Body)
+
+	var book Book
+
+	var resp Resp
+
+	err := decoder.Decode(&book)
+
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		resp.Error = err.Error()
+
+		respJson, _ := json.Marshal(resp)
+
+		w.Write(respJson)
+
+		return
+	}
+
+	book.Id = id
+
+	err = bookStore.UpdateBook(book)
+
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		resp.Error = err.Error()
+
+		respJson, _ := json.Marshal(resp)
+
+		w.Write(respJson)
+
+		return
+	}
+
+	resp.Message = book
+
+	w.WriteHeader(http.StatusOK)
+
+	respJson, _ := json.Marshal(resp)
+
+	w.Write(respJson)
+}
+
+func handleDeleteBook(w http.ResponseWriter, r *http.Request) {
+	id := strings.Replace(r.URL.Path, "/book/", "", 1)
+
+	var resp Resp
+
+	err := bookStore.DeleteBook(id)
+
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+
+		resp.Error = err.Error()
+
+		respJson, _ := json.Marshal(resp)
+
+		w.Write(respJson)
+
+		return
+	}
+
+	bookHandler(w, r)
+
+}
+
 
 func handleAddBook(w http.ResponseWriter, r *http.Request) {
 	decoder := json.NewDecoder(r.Body)
@@ -81,7 +156,6 @@ func handleAddBook(w http.ResponseWriter, r *http.Request) {
 
 	err := decoder.Decode(&book)
 
-	bookStore.
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		resp.Error = err.Error()
@@ -91,7 +165,20 @@ func handleAddBook(w http.ResponseWriter, r *http.Request) {
 		w.Write(respJson)
 		return
 	}
-		w.WriteHeader(http.StatusOK)
+	err = bookStore.AddBooks(book)
+
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		resp.Error = err.Error()
+
+		respJson, _ := json.Marshal(resp)
+
+		w.Write(respJson)
+		return
+	}
+
+	bookHandler(w, r)
+
 }
 
 func booksHandler(w http.ResponseWriter, r *http.Request) {
@@ -111,7 +198,30 @@ func booksHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleGetBook(w http.ResponseWriter, r *http.Request) {
+	id := strings.Replace(r.URL.Path, "/book/", "", 1)
 
+	book := bookStore.FindBookById(id)
+
+	var resp Resp
+
+	if book == nil {
+		w.WriteHeader(http.StatusNotFound)
+		resp.Error = fmt.Sprintf("")
+
+		respJson, _ := json.Marshal(resp)
+
+		w.Write(respJson)
+
+		return
+	}
+
+	resp.Message = book
+
+	w.WriteHeader(http.StatusOK)
+
+	respJson, _ := json.Marshal(resp)
+
+	w.Write(respJson)
 }
 
 type Book struct {
@@ -124,22 +234,25 @@ type BookStore struct {
 	books []Book
 }
 
-var bookStore = BookStore{}
-func (s BookStore) findBookById(id string) *Book{
-	for _, book := range s.books  {
-		if book.Id == id{
+var bookStore = BookStore{
+	books: make([]Book, 0),
+}
+
+func (s BookStore) FindBookById(id string) *Book {
+	for _, book := range s.books {
+		if book.Id == id {
 			return &book
 		}
 	}
 	return nil
 }
 
-func (s BookStore) GetBooks(book Book) []Book{
+func (s BookStore) GetBooks(book Book) []Book {
 	return s.books
 }
 
-func (s BookStore) AddBooks(book Book) error{
-	for _, bk := range s.books{
+func (s BookStore) AddBooks(book Book) error {
+	for _, bk := range s.books {
 		if bk.Id == id {
 			return
 		}
@@ -160,7 +273,7 @@ func (s *BookStore) UpdateBook(book Book) error {
 
 func (s *BookStore) DeleteBook(id string) error {
 	for i, bk := range s.books {
-		if bk.Id == id{
+		if bk.Id == id {
 			s.books = append(s.books[:i], s.books[i+1:]...)
 			return nil
 		}
@@ -168,4 +281,3 @@ func (s *BookStore) DeleteBook(id string) error {
 	return errors.New(fmt.Sprintf("Book with id %s not found", id))
 
 }
-
