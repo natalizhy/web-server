@@ -196,17 +196,17 @@ func handleAddBook(w http.ResponseWriter, r *http.Request) {
 		w.Write(respJson)
 		return
 	}
-	//err = bookStore.AddBooks(book)
-	//
-	//if err != nil {
-	//	w.WriteHeader(http.StatusBadRequest)
-	//	resp.Error = err.Error()
-	//
-	//	respJson, _ := json.Marshal(resp)
-	//
-	//	w.Write(respJson)
-	//	return
-	//}
+	err = bookStore.AddBook(book)
+
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		resp.Error = err.Error()
+
+		respJson, _ := json.Marshal(resp)
+
+		w.Write(respJson)
+		return
+	}
 
 	bookHandler(w, r)
 
@@ -299,40 +299,6 @@ func (s *BookStore) SetBook(book Book) error {
 
 	return errors.New(fmt.Sprintf("There is no book with id %s", book.Id))
 }
-
-//func (s BookStore) AddBooks(book Book) error {
-//	for _, bk := range s.books {
-//		if bk.Id == id {
-//			return
-//		}
-//	}
-//	s.books = append(s.books, book)
-//	return s.books
-//}
-//
-//func (s *BookStore) AddBook(book Book) error{
-//	bk := s.FindBookById(book.Id)
-//	if bk != nil {
-//		return errors.New(fmt.Sprintf("Book with id %s already exists", book.Id))
-//
-//	}
-//	s.books = append(s.books, book)
-//
-//	return nil
-//}
-//
-//func (s *BookStore) SetBook(book Book) error{
-//	for i, bk := range s.books {
-//		if bk.Id == book.Id {
-//
-//			s.books[i] = book
-//
-//			return nil
-//		}
-//	}
-//
-//	return errors.New(fmt.Sprintf("There is no book with id %s", book.Id))
-//}
 
 func (s *BookStore) UpdateBook(book Book) error {
 	for i, bk := range s.books {
