@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/base64"
 	"fmt"
 	"log"
 	"net/http"
@@ -17,9 +18,11 @@ func main() {
 	handler.HandleFunc("/hello/", Logger(helloHandler))
 	handler.HandleFunc("/book/", bookHandler)
 	handler.HandleFunc("/books/", booksHandler)
+
 	s := http.Server{
-		Addr:           ":8080",
-		Handler:        nil,
+		Addr:    ":8080",
+		Handler: handler,
+		//Port:       "3306",
 		ReadTimeout:    10 * time.Second,
 		WriteTimeout:   10 * time.Second,
 		IdleTimeout:    10 * time.Second,
@@ -61,6 +64,35 @@ func Logger(next http.HandlerFunc) http.HandlerFunc { // промежуточн�
 
 		next.ServeHTTP(w, r)
 	}
+}
+
+func BasicAuth(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+
+		auth := strings.SplitN(r.Header.Get("Authorization"), " ", 2)
+
+		if len(auth) != 2 || auth[0] != "Basic" {
+			http.Error(w, "authorization failed", http.StatusUnauthorized)
+			return
+		}
+
+		payload, _ := base64.StdEncoding.DecodeString(auth[1])
+		pair := strings.SplitN(string(payload), ":", 2)
+
+		if len(pair) != 2 || !validate(pair[0], pair[1]) {
+			http.Error(w, "authorization failed", http.StatusUnauthorized)
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	}
+}
+
+func validate(username, password string) bool {
+	if username == "test" && password == "test" { //Basic dGVzdDp0ZXN0
+		return true
+	}
+	return false
 }
 
 func bookHandler(w http.ResponseWriter, r *http.Request) {
@@ -146,7 +178,6 @@ func handleDeleteBook(w http.ResponseWriter, r *http.Request) {
 
 }
 
-
 func handleAddBook(w http.ResponseWriter, r *http.Request) {
 	decoder := json.NewDecoder(r.Body)
 
@@ -165,36 +196,40 @@ func handleAddBook(w http.ResponseWriter, r *http.Request) {
 		w.Write(respJson)
 		return
 	}
-	err = bookStore.AddBooks(book)
-
-	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		resp.Error = err.Error()
-
-		respJson, _ := json.Marshal(resp)
-
-		w.Write(respJson)
-		return
-	}
+	//err = bookStore.AddBooks(book)
+	//
+	//if err != nil {
+	//	w.WriteHeader(http.StatusBadRequest)
+	//	resp.Error = err.Error()
+	//
+	//	respJson, _ := json.Marshal(resp)
+	//
+	//	w.Write(respJson)
+	//	return
+	//}
 
 	bookHandler(w, r)
 
 }
 
+//
 func booksHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
 	if r.Method == http.MethodGet {
 		handleGetBook(w, r)
 	}
 
-	w.WriteHeader(http.StatusOK)
+}
 
-	resp := Resp{
-		Message: bookStore.GetBooks(),
-	}
+type Book struct {
+	Id     string `json:"id"`
+	Author string `json:"author"`
+	Name   string `json:"name"`
+}
 
-	booksJson, _ := json.Marshal(bookStore.GetBooks())
-
-	w.Write(booksJson)
+type BookStore struct {
+	books []Book
 }
 
 func handleGetBook(w http.ResponseWriter, r *http.Request) {
@@ -224,16 +259,6 @@ func handleGetBook(w http.ResponseWriter, r *http.Request) {
 	w.Write(respJson)
 }
 
-type Book struct {
-	Id     string `json:"id"`
-	Author string `json:"author"`
-	Name   string `json:"name"`
-}
-
-type BookStore struct {
-	books []Book
-}
-
 var bookStore = BookStore{
 	books: make([]Book, 0),
 }
@@ -247,19 +272,67 @@ func (s BookStore) FindBookById(id string) *Book {
 	return nil
 }
 
-func (s BookStore) GetBooks(book Book) []Book {
+func (s BookStore) GetBooks() []Book {
 	return s.books
 }
 
-func (s BookStore) AddBooks(book Book) error {
-	for _, bk := range s.books {
-		if bk.Id == id {
-			return
-		}
+func (s *BookStore) AddBook(book Book) error {
+	bk := s.FindBookById(book.Id)
+	if bk != nil {
+		return errors.New(fmt.Sprintf("Book with id %s already exists", book.Id))
+
 	}
 	s.books = append(s.books, book)
-	return s.books
+
+	return nil
 }
+
+func (s *BookStore) SetBook(book Book) error {
+	for i, bk := range s.books {
+		if bk.Id == book.Id {
+
+			s.books[i] = book
+
+			return nil
+		}
+	}
+
+	return errors.New(fmt.Sprintf("There is no book with id %s", book.Id))
+}
+
+//func (s BookStore) AddBooks(book Book) error {
+//	for _, bk := range s.books {
+//		if bk.Id == id {
+//			return
+//		}
+//	}
+//	s.books = append(s.books, book)
+//	return s.books
+//}
+//
+//func (s *BookStore) AddBook(book Book) error{
+//	bk := s.FindBookById(book.Id)
+//	if bk != nil {
+//		return errors.New(fmt.Sprintf("Book with id %s already exists", book.Id))
+//
+//	}
+//	s.books = append(s.books, book)
+//
+//	return nil
+//}
+//
+//func (s *BookStore) SetBook(book Book) error{
+//	for i, bk := range s.books {
+//		if bk.Id == book.Id {
+//
+//			s.books[i] = book
+//
+//			return nil
+//		}
+//	}
+//
+//	return errors.New(fmt.Sprintf("There is no book with id %s", book.Id))
+//}
 
 func (s *BookStore) UpdateBook(book Book) error {
 	for i, bk := range s.books {
